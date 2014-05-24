@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,6 +9,9 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
+ */
+/*
+ * Qualcomm MSM Runqueue Stats and cpu utilization Interface for Userspace
  */
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -128,6 +131,13 @@ static int update_average_load(unsigned int freq, unsigned int cpu)
 	cputime64_t cur_wall_time, cur_idle_time, cur_iowait_time;
 	unsigned int idle_time, wall_time, iowait_time;
 	unsigned int cur_load, load_at_max_freq;
+	cputime64_t cur_wall_time, cur_idle_time, cur_iowait_time;
+	struct cpu_load_data *pcpu = &per_cpu(cpuload, cpu);
+	struct cpufreq_policy policy;
+
+        ret = cpufreq_get_policy(&policy, cpu);
+        if (ret)
+                return -EINVAL;
 
 	cur_idle_time = get_cpu_idle_time(cpu, &cur_wall_time);
 	cur_iowait_time = get_cpu_iowait_time(cpu, &cur_wall_time);
@@ -169,6 +179,11 @@ static int update_average_load(unsigned int freq, unsigned int cpu)
 		pcpu->avg_load_maxfreq = load_at_max_freq;
 		pcpu->window_size = wall_time;
 	} else {
+		/*
+		 * The is already a sample available in this window.
+		 * Compute weighted average with prev entry, so that we get
+		 * the precise weighted load.
+		 */
 		pcpu->avg_load_maxfreq =
 			((pcpu->avg_load_maxfreq * pcpu->window_size) +
 			(load_at_max_freq * wall_time)) /
@@ -211,7 +226,7 @@ static int cpufreq_transition_handler(struct notifier_block *nb,
 	struct cpu_load_data *this_cpu = &per_cpu(cpuload, freqs->cpu);
 	int j;
 
-	if (!rq_data_init_done)
+	if (rq_info.hotplug_disabled)
 		return 0;
 
 	switch (val) {
@@ -234,6 +249,9 @@ static int cpu_hotplug_handler(struct notifier_block *nb,
 	unsigned int cpu = (unsigned long)data;
 	struct cpu_load_data *this_cpu = &per_cpu(cpuload, cpu);
 
+	if (rq_info.hotplug_disabled)
+		return NOTIFY_OK;
+
 	switch (val) {
 	case CPU_ONLINE:
 		if (!this_cpu->cur_freq)
@@ -248,6 +266,9 @@ static int cpu_hotplug_handler(struct notifier_block *nb,
 static int system_suspend_handler(struct notifier_block *nb,
 				unsigned long val, void *data)
 {
+	if (rq_info.hotplug_disabled)
+		return NOTIFY_OK;
+
 	switch (val) {
 	case PM_POST_HIBERNATION:
 	case PM_POST_SUSPEND:
@@ -264,8 +285,9 @@ static int system_suspend_handler(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-static int freq_policy_handler(struct notifier_block *nb,
-			unsigned long event, void *data)
+static ssize_t store_hotplug_disable(struct kobject *kobj,
+				     struct kobj_attribute *attr,
+				     const char *buf, size_t count)
 {
 	struct cpufreq_policy *policy = data;
 	struct cpu_load_data *this_cpu = &per_cpu(cpuload, policy->cpu);
@@ -274,7 +296,8 @@ static int freq_policy_handler(struct notifier_block *nb,
 	if (event != CPUFREQ_NOTIFY)
 		goto out;
 
-	this_cpu->policy_max = policy->max;
+	rq_info.hotplug_disabled = val;
+	spin_unlock_irqrestore(&rq_lock, flags);
 
 	pr_debug("Policy max changed from %u to %u, event %lu\n",
 			old_policy_max, this_cpu->policy_max, event);
@@ -282,43 +305,10 @@ out:
 	return NOTIFY_DONE;
 }
 
-void enable_rq_load_calc(bool on)
+static ssize_t show_hotplug_disable(struct kobject *kobj,
+				    struct kobj_attribute *attr, char *buf)
 {
-	int cpu;
-
-	if (on != load_stats_enabled){
-		load_stats_enabled = on;
-
-		pr_info("Enable rq_stats load calculation %d\n", load_stats_enabled);
-		
-		if (!rq_data_init_done)
-			return;
-
-		if (load_stats_enabled) {
-			// clear data
-			for_each_possible_cpu(cpu) {
-				struct cpu_load_data *pcpu = &per_cpu(cpuload, cpu);
-
-				pcpu->prev_cpu_idle = 0;
-				pcpu->prev_cpu_wall = 0;
-				pcpu->prev_cpu_iowait = 0;
-				pcpu->prev_cpu_nice = 0;
-				pcpu->avg_load_maxfreq = 0;
-			}
-
-			cpufreq_register_notifier(&freq_transition,
-					CPUFREQ_TRANSITION_NOTIFIER);
-			register_hotcpu_notifier(&cpu_hotplug);
-			cpufreq_register_notifier(&freq_policy,
-					CPUFREQ_POLICY_NOTIFIER);
-		} else {
-			cpufreq_unregister_notifier(&freq_transition,
-					CPUFREQ_TRANSITION_NOTIFIER);
-			unregister_hotcpu_notifier(&cpu_hotplug);
-			cpufreq_unregister_notifier(&freq_policy,
-					CPUFREQ_POLICY_NOTIFIER);
-		}
-	}
+	return snprintf(buf, MAX_LONG_SIZE, "%d\n", rq_info.hotplug_disabled);
 }
 
 static ssize_t hotplug_disable_show(struct kobject *kobj,
@@ -351,6 +341,9 @@ EXPORT_SYMBOL(get_rq_info);
 static void def_work_fn(struct work_struct *work)
 {
 	int64_t diff;
+
+	if (rq_info.hotplug_disabled)
+		return;
 
 	diff = ktime_to_ns(ktime_get()) - rq_info.def_start_time;
 	do_div(diff, 1000 * 1000);
@@ -440,7 +433,8 @@ static struct kobj_attribute def_timer_ms_attr =
 static ssize_t show_cpu_normalized_load(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
-	return snprintf(buf, MAX_LONG_SIZE, "%u\n", report_load_at_max_freq());
+	return snprintf(buf, MAX_LONG_SIZE, "%u\n",
+		rq_info.hotplug_disabled ? 0 : report_load_at_max_freq());
 }
 
 static struct kobj_attribute cpu_normalized_load_attr =
@@ -467,7 +461,7 @@ static int init_rq_attribs(void)
 	rq_info.rq_avg = 0;
 	rq_info.attr_group = &rq_attr_group;
 
-	
+	/* Create /sys/devices/system/cpu/cpu0/rq-stats/... */
 	rq_info.kobj = kobject_create_and_add("rq-stats",
 			&get_cpu_device(0)->kobj);
 	if (!rq_info.kobj)
@@ -502,7 +496,7 @@ static int __init msm_rq_stats_init(void)
 	rq_info.def_timer_jiffies = DEFAULT_DEF_TIMER_JIFFIES;
 	rq_info.rq_poll_last_jiffy = 0;
 	rq_info.def_timer_last_jiffy = 0;
-	rq_info.hotplug_disabled = 0;
+	rq_info.hotplug_disabled = 1;
 	ret = init_rq_attribs();
 
 	rq_info.init = 1;
@@ -511,9 +505,9 @@ static int __init msm_rq_stats_init(void)
 		struct cpu_load_data *pcpu = &per_cpu(cpuload, i);
 		mutex_init(&pcpu->cpu_load_mutex);
 		cpufreq_get_policy(&cpu_policy, i);
-		pcpu->policy_max = cpu_policy.cpuinfo.max_freq;
+		pcpu->policy_max = cpu_policy.max;
 		if (cpu_online(i))
-			pcpu->cur_freq = cpufreq_quick_get(i);
+			pcpu->cur_freq = cpu_policy.cur;
 		cpumask_copy(pcpu->related_cpus, cpu_policy.cpus);
 	}
 	freq_transition.notifier_call = cpufreq_transition_handler;
