@@ -299,6 +299,7 @@
 		compatible = "qcom,android-usb";
 		reg = <0xfe8050c8 0xc8>;
 		qcom,android-usb-swfi-latency = <1>;
+		qcom,streaming-func = "rndis";
 	};
 
 	hsic_host: hsic@f9a00000 {
@@ -484,6 +485,14 @@
 
 	qcom,msm-lsm-client {
 		compatible = "qcom,msm-lsm-client";
+	};
+
+	qcom,msm-pcm-loopback {
+		compatible = "qcom,msm-pcm-loopback";
+	};
+
+	qcom,msm-voice-svc {
+		compatible = "qcom,msm-voice-svc";
 	};
 
 	qcom,msm-dai-q6 {
@@ -760,6 +769,7 @@
 
 		qcom,bus-width = <8>;
 
+		qcom,cpu-dma-latency-us = <701>;
 		qcom,msm-bus,name = "sdcc1";
 		qcom,msm-bus,num-cases = <8>;
 		qcom,msm-bus,num-paths = <1>;
@@ -787,6 +797,7 @@
 
 		qcom,bus-width = <8>;
 
+		qcom,cpu-dma-latency-us = <701>;
 		qcom,msm-bus,name = "sdhc1";
 		qcom,msm-bus,num-cases = <8>;
 		qcom,msm-bus,num-paths = <1>;
@@ -817,6 +828,7 @@
 
 		qcom,bus-width = <4>;
 
+		qcom,cpu-dma-latency-us = <701>;
 		qcom,msm-bus,name = "sdcc2";
 		qcom,msm-bus,num-cases = <8>;
 		qcom,msm-bus,num-paths = <1>;
@@ -844,6 +856,7 @@
 
 		qcom,bus-width = <4>;
 
+		qcom,cpu-dma-latency-us = <701>;
 		qcom,msm-bus,name = "sdhc2";
 		qcom,msm-bus,num-cases = <8>;
 		qcom,msm-bus,num-paths = <1>;
@@ -870,6 +883,7 @@
 		reg-names = "core_mem", "dml_mem", "bam_mem";
 
 		qcom,bus-width = <4>;
+		qcom,cpu-dma-latency-us = <701>;
 		gpios = <&msmgpio 44 0>, /* CLK */
 			<&msmgpio 43 0>, /* CMD */
 			<&msmgpio 42 0>, /* DATA0 */
@@ -913,6 +927,7 @@
 		reg-names = "hc_mem", "core_mem";
 
 		qcom,bus-width = <4>;
+		qcom,cpu-dma-latency-us = <701>;
 		gpios = <&msmgpio 44 0>, /* CLK */
 			<&msmgpio 43 0>, /* CMD */
 			<&msmgpio 42 0>, /* DATA0 */
@@ -1031,6 +1046,20 @@
 			< 384000000 1>,
 			< 787200000 2>,
 			<1190400000 3>;
+		qcom,speed1-bin-v2 =
+			<         0 0>,
+			< 192000000 2>,
+			< 300000000 2>,
+			< 384000000 2>,
+			< 787200000 4>,
+			< 998400000 5>,
+			<1094400000 6>,
+			<1190400000 7>,
+			<1305600000 8>,
+			<1344000000 9>,
+			<1401600000 10>,
+			<1497600000 11>,
+			<1593600000 12>;
 
 		cpu-vdd-supply = <&apc_vreg_corner>;
 	};
@@ -1042,25 +1071,26 @@
 			< 1525 /* 200 MHz */ >,
 			< 2441 /* 320 MHz */ >,
 			< 3051 /* 400 MHz */ >,
-			< 4066 /* 533 MHz */ >;
+			< 4066 /* 533 MHz */ >,
+			< 4317 /* 566 MHz */ >;
 	};
 
 	qcom,msm-cpufreq@0 {
-		reg = <0 4>;
+		reg = <0 5>;
 		compatible = "qcom,msm-cpufreq";
 		qcom,cpufreq-table =
 			<  300000 1525 >,
 			<  384000 1525 >,
 			<  600000 1525 >,
 			<  787200 3051 >,
-			<  998400 4066 >,
+			<  998400 3051 >,
 			< 1094400 4066 >,
-			< 1190400 4066 >,
-			< 1305600 4066 >,
-			< 1344000 4066 >,
-			< 1401600 4066 >,
-			< 1497600 4066 >,
-			< 1593600 4066 >;
+			< 1190400 4317 >,
+			< 1305600 4317 >,
+			< 1344000 4317 >,
+			< 1401600 4317 >,
+			< 1497600 4317 >,
+			< 1593600 4317 >;
 	};
 
 	qcom,ocmem@fdd00000 {
@@ -1322,6 +1352,7 @@
 		qcom,disk-encrypt-pipe-pair = <2>;
 		qcom,hlos-ce-hw-instance = <0>;
 		qcom,qsee-ce-hw-instance = <0>;
+		qcom,support-bus-scaling;
 		qcom,msm-bus,name = "qseecom-noc";
 		qcom,msm-bus,num-cases = <4>;
 		qcom,msm-bus,active-only = <0>;
