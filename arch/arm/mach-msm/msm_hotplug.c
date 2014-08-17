@@ -458,9 +458,9 @@ static void msm_hotplug_work(struct work_struct *work)
 		target = hotplug.min_cpus_online;
 
 	if (stats.online_cpus != target) {
-		if (target > stats.online_cpus)
+		if (target > stats.cur_avg_load)
 			online_cpu(target);
-		else if (target < stats.online_cpus)
+		else if (target < stats.cur_avg_load)
 			offline_cpu(target);
 	}
 
