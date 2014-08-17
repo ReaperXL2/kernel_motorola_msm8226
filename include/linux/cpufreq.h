@@ -97,13 +97,12 @@ struct cpufreq_policy {
 	unsigned int		cpu;    /* cpu nr of registered CPU */
 	struct cpufreq_cpuinfo	cpuinfo;/* see above */
 
-	unsigned int		min;    /* in kHz */
-	unsigned int		max;    /* in kHz */
-	unsigned int		cur;    /* in kHz, only needed if cpufreq
-					 * governors are used */
-	unsigned int            util;  /* CPU utilization at max frequency */
-	unsigned int		policy; /* see above */
-	struct cpufreq_governor	*governor; /* see below */
+	unsigned int		min;    
+	unsigned int		max;    
+	unsigned int		cur;    
+	unsigned int           util;
+	unsigned int		policy; 
+	struct cpufreq_governor	*governor; 
 
 	struct work_struct	update; /* if update_policy() needs to be
 					 * called, but you're in IRQ context */
@@ -262,6 +261,7 @@ int cpufreq_unregister_driver(struct cpufreq_driver *driver_data);
 
 
 void cpufreq_notify_transition(struct cpufreq_freqs *freqs, unsigned int state);
+
 void cpufreq_notify_utilization(struct cpufreq_policy *policy,
 		unsigned int load);
 

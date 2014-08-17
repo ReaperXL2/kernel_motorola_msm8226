@@ -895,7 +895,10 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 				dbs_freq_increase(policy,
 						dbs_tuners_ins.sync_freq);
 			return;
-		}
+
+	load_at_max_freq = (cur_load * policy->cur)/policy->cpuinfo.max_freq;
+
+	cpufreq_notify_utilization(policy, load_at_max_freq);
 
 		if (max_load_freq > dbs_tuners_ins.up_threshold_multi_core *
 								policy->cur) {
