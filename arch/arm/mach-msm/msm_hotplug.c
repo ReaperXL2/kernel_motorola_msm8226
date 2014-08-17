@@ -37,7 +37,7 @@
 #define DEFAULT_NR_CPUS_BOOSTED	2
 #define DEFAULT_MIN_CPUS_ONLINE	1
 #define DEFAULT_MAX_CPUS_ONLINE	NR_CPUS
-#define DEFAULT_FAST_LANE_LOAD	99
+#define DEFAULT_FAST_LANE_LOAD	95
 
 static unsigned int debug = 0;
 module_param_named(debug_mask, debug, uint, 0644);
@@ -112,8 +112,8 @@ struct down_lock {
 static DEFINE_PER_CPU(struct down_lock, lock_info);
 
 struct cpu_load_data {
-	u64 prev_cpu_idle;
-	u64 prev_cpu_wall;
+	cputime64_t prev_cpu_idle;
+	cputime64_t prev_cpu_wall;
 	unsigned int avg_load_maxfreq;
 	unsigned int cur_load_maxfreq;
 	unsigned int samples;
@@ -145,7 +145,8 @@ static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
 	return jiffies_to_usecs(idle_time);
 }
 
-static inline u64 get_cpu_idle_time(unsigned int cpu, u64 *wall)
+static inline cputime64_t get_cpu_idle_time(unsigned int cpu,
+					    cputime64_t *wall)
 {
 	u64 idle_time = get_cpu_idle_time_us(cpu, NULL);
 
@@ -162,7 +163,7 @@ static int update_average_load(unsigned int cpu)
 	int ret;
 	unsigned int idle_time, wall_time;
 	unsigned int cur_load, load_max_freq;
-	u64 cur_wall_time, cur_idle_time;
+	cputime64_t cur_wall_time, cur_idle_time;
 	struct cpu_load_data *pcpu = &per_cpu(cpuload, cpu);
 	struct cpufreq_policy policy;
 
@@ -413,13 +414,11 @@ static unsigned int load_to_update_rate(unsigned int load)
 	return ret;
 }
 
-static void reschedule_hotplug_work(void)
+static int reschedule_hotplug_work(void)
 {
-	unsigned int delay;
-
-	delay = load_to_update_rate(stats.cur_avg_load);
-	queue_delayed_work_on(0, hotplug_wq, &hotplug_work,
-			      msecs_to_jiffies(delay));
+	return queue_delayed_work_on(0, hotplug_wq, &hotplug_work,
+				     msecs_to_jiffies(load_to_update_rate(
+						      stats.cur_avg_load)));
 }
 
 static void msm_hotplug_work(struct work_struct *work)
