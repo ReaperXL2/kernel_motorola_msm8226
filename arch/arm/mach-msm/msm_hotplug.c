@@ -46,11 +46,11 @@ do { 				\
 
 static struct cpu_hotplug {
 	unsigned int suspend_freq;
-	unsigned int target_cpus;
+	atomic_t target_cpus;
 	unsigned int min_cpus_online;
 	unsigned int max_cpus_online;
 	unsigned int cpus_boosted;
-	uint32_t down_lock;
+	atomic_t down_lock;
 	unsigned int down_lock_dur;
 	u64 last_input_time;
 	struct work_struct up_work;
@@ -65,7 +65,7 @@ static struct cpu_hotplug {
 	.min_cpus_online = DEFAULT_MIN_CPUS_ONLINE,
 	.max_cpus_online = DEFAULT_MAX_CPUS_ONLINE,
 	.cpus_boosted = DEFAULT_NR_CPUS_BOOSTED,
-	.down_lock = 0,
+	.down_lock = ATOMIC_INIT(0),
 	.down_lock_dur = DEFAULT_DOWN_LOCK_DUR,
 	.screen_on = true
 };
@@ -107,7 +107,6 @@ static int msm_hotplug_cpufreq_callback(struct notifier_block *nfb,
 	}
 	return NOTIFY_OK;
 }
-EXPORT_SYMBOL_GPL(msm_hotplug_cpufreq_callback);
 
 static struct notifier_block msm_hotplug_cpufreq_notifier = {
 	.notifier_call = msm_hotplug_cpufreq_callback,
@@ -161,7 +160,7 @@ static struct load_thresh_tbl load[] = {
 
 static void apply_down_lock(void)
 {
-	hotplug.down_lock = 1;
+	atomic_set(&hotplug.down_lock, 1);
 	mod_timer(&hotplug.lock_timer,
 		  jiffies + msecs_to_jiffies(hotplug.down_lock_dur));
 }
@@ -169,16 +168,16 @@ EXPORT_SYMBOL_GPL(apply_down_lock);
 
 static void handle_lock_timer(unsigned long data)
 {
-	hotplug.down_lock = 0;
+	atomic_set(&hotplug.down_lock, 0);
 }
 EXPORT_SYMBOL_GPL(handle_lock_timer);
 
 static void __ref cpu_up_work(struct work_struct *work)
 {
 	int cpu;
-	unsigned int target;
+	int target;
 
-	target = hotplug.target_cpus;
+	target = atomic_read(&hotplug.target_cpus);
 
 	for_each_cpu_not(cpu, cpu_online_mask) {
 		if (target == num_online_cpus())
@@ -193,12 +192,13 @@ EXPORT_SYMBOL_GPL(cpu_up_work);
 static void cpu_down_work(struct work_struct *work)
 {
 	int cpu;
-	unsigned int target;
+	int lock, target;
 
-	if (hotplug.down_lock)
+	lock = atomic_read(&hotplug.down_lock);
+	if (lock)
 		return;
 
-	target = hotplug.target_cpus;
+	target = atomic_read(&hotplug.target_cpus);
 
 	for_each_online_cpu(cpu) {
 		if (cpu == 0)
@@ -212,15 +212,15 @@ EXPORT_SYMBOL_GPL(cpu_down_work);
 
 static void online_cpu(unsigned int target)
 {
+	atomic_set(&hotplug.target_cpus, target);
 	apply_down_lock();
-	hotplug.target_cpus = target;
 	queue_work_on(0, hotplug_wq, &hotplug.up_work);
 }
 EXPORT_SYMBOL_GPL(online_cpu);
 
 static void offline_cpu(unsigned int target)
 {
-	hotplug.target_cpus = target;
+	atomic_set(&hotplug.target_cpus, target);
 	queue_work_on(0, hotplug_wq, &hotplug.down_work);
 }
 EXPORT_SYMBOL_GPL(offline_cpu);
@@ -290,7 +290,7 @@ static void msm_hotplug_suspend(struct work_struct *work)
 	flush_workqueue(hotplug_wq);
 	cancel_delayed_work_sync(&hotplug_work);
 
-	hotplug.down_lock = 0;
+	atomic_set(&hotplug.down_lock, 0);
 	offline_cpu(stats.min_cpus);
 
 	get_online_cpus();
@@ -592,7 +592,7 @@ static ssize_t store_min_cpus_online(struct device *dev,
 	if (hp->max_cpus_online < val)
 		hp->max_cpus_online = val;
 	hp->min_cpus_online = val;
-	hotplug.down_lock = 0;
+	atomic_set(&hp->down_lock, 0);
 	offline_cpu(val);
 
 	return ret;
@@ -620,7 +620,7 @@ static ssize_t store_max_cpus_online(struct device *dev,
 	if (hp->min_cpus_online > val)
 		hp->min_cpus_online = val;
 	hp->max_cpus_online = val;
-	hotplug.down_lock = 0;
+	atomic_set(&hp->down_lock, 0);
 	online_cpu(val);
 
 	return ret;
@@ -710,11 +710,7 @@ static int __init msm_hotplug_init(void)
 	ret = cpufreq_register_notifier(&msm_hotplug_cpufreq_notifier,
 					CPUFREQ_POLICY_NOTIFIER);
 	if (ret)
-		pr_err("%s: Cannot register cpufreq notifier\n", MSM_HOTPLUG);
-
-	hotplug.notif.notifier_call = lcd_notifier_callback;
-	if (lcd_register_client(&hotplug.notif) != 0)
-		pr_err("%s: LCD notifier callback failed\n", __func__);
+		pr_err("%s: cannot register cpufreq notifier\n", MSM_HOTPLUG);
 
 	INIT_DELAYED_WORK(&hotplug_work, msm_hotplug_work);
 	INIT_WORK(&hp->up_work, cpu_up_work);
@@ -761,6 +757,10 @@ static int __init msm_hotplug_device_init(void)
 	ret = sysfs_create_group(module_kobj, &attr_group);
 	if (ret)
 		return pr_err("%s: Creation of sysfs: %d\n", MSM_HOTPLUG, ret);
+
+	hotplug.notif.notifier_call = lcd_notifier_callback;
+	if (lcd_register_client(&hotplug.notif) != 0)
+		pr_err("%s: LCD notifier callback failed\n", __func__);
 
 	ret = input_register_handler(&hotplug_input_handler);
 	if (ret)
