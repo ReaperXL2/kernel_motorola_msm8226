@@ -706,14 +706,24 @@ static ssize_t store_history_size(struct device *dev,
 	unsigned int val;
 
 	ret = sscanf(buf, "%u", &val);
-	if (ret != 1 || val < 1 || val > 20)
+	if (ret != 1 || val <= 0)
 		return -EINVAL;
 
 	flush_workqueue(hotplug_wq);
 	cancel_delayed_work_sync(&hotplug_work);
 
-	memset(stats.load_hist, 0, sizeof(stats.load_hist));
+	mutex_lock(&stats.stats_mutex);
+	if (stats.hist_size > 1)
+		kfree(stats.load_hist);
+
 	stats.hist_size = val;
+
+	if (stats.hist_size > 1) {
+		stats.load_hist = kmalloc(sizeof(stats.hist_size), GFP_KERNEL);
+		if (!stats.load_hist)
+			return -ENOMEM;
+	}
+	mutex_unlock(&stats.stats_mutex);
 
 	reschedule_hotplug_work();
 
