@@ -86,15 +86,17 @@ static struct cpu_stats {
 	.total_cpus = NR_CPUS
 };
 
+static DEFINE_SPINLOCK(stats_lock);
 extern unsigned int report_load_at_max_freq(void);
 
 static struct cpu_stats *get_load_stats(void)
 {
 	unsigned int i, j;
 	unsigned int load = 0;
+	unsigned long flags;
 	struct cpu_stats *st = &stats;
 
-	st->online_cpus = num_online_cpus();
+	spin_lock_irqsave(&stats_lock, flags);
 	st->load_hist[st->hist_cnt] = report_load_at_max_freq();
 
 	for (i = 0, j = st->hist_cnt; i < st->hist_size; i++, j--) {
@@ -107,7 +109,9 @@ static struct cpu_stats *get_load_stats(void)
 	if (++st->hist_cnt == st->hist_size)
 		st->hist_cnt = 0;
 
+	st->online_cpus = num_online_cpus();
 	st->current_load = load / st->hist_size;
+	spin_unlock_irqrestore(&stats_lock, flags);
 
 	return st;
 }
