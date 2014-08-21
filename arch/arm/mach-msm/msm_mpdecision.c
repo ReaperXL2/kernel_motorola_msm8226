@@ -222,7 +222,7 @@ static void msm_mpdec_late_resume(struct early_suspend *h)
 }
 
 static struct early_suspend msm_mpdec_early_suspend_handler = {
-	.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN,
+	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB,
 	.suspend = msm_mpdec_early_suspend,
 	.resume = msm_mpdec_late_resume,
 };
