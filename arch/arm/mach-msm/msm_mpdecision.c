@@ -618,11 +618,11 @@ static int msm_mpdec_lcd_notifier_callback(struct notifier_block *this,
 }
 #else
 static void msm_mpdec_early_suspend(struct early_suspend *h) {
-	   schedule_work(&msm_mpdec_suspend_work);
+	   msm_mpdec_suspend();
 }
 
 static void msm_mpdec_late_resume(struct early_suspend *h) {
-	   schedule_work(&msm_mpdec_resume_work);
+	   msm_mpdec_resume();
 }
 
 static struct early_suspend msm_mpdec_early_suspend_handler = {
