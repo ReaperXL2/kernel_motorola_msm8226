@@ -1373,26 +1373,6 @@ int generic_segment_checks(const struct iovec *iov,
 }
 EXPORT_SYMBOL(generic_segment_checks);
 
-int file_read_iter_actor(read_descriptor_t *desc, struct page *page,
-			 unsigned long offset, unsigned long size)
-{
-	struct iov_iter *iter = desc->arg.data;
-	unsigned long copied = 0;
-
-	if (size > desc->count)
-		size = desc->count;
-
-	copied = iov_iter_copy_to_user(page, iter, offset, size);
-	if (copied < size)
-		desc->error = -EFAULT;
-
-	iov_iter_advance(iter, copied);
-	desc->count -= copied;
-	desc->written += copied;
-
-	return copied;
-}
-
 /**
  * generic_file_aio_read - generic filesystem read routine
  * @iocb:	kernel I/O control block
