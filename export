@@ -1,11 +1,11 @@
 #!/bin/bash
 build=~/downloads/InSaNiTy
 kernel="InSaNiTy"
-version="1.3"
+version="1.4"
 rom="aosp"
 variant="falcon"
 ramdisk=ramdisk
-toolchain=~/kernel/kernel_motorola_msm8226/toolchain/bin/
+toolchain=~/kernel/kernel_motorola_msm8226/toolchain/4.10/bin
 toolchain2="arm-eabi-"
 config="msm8226_mmi_defconfig"
 kerneltype="zImage-dtb"
@@ -18,7 +18,7 @@ cmdline="console=ttyHSL0,115200,n8 androidboot.console=ttyHSL0 androidboot.hardw
 
 if [ "$1" = "local" ]; then
 	build=~/downloads/InSaNiTy
-	toolchain=~/kernel/kernel_motorola_msm8226/toolchain/bin/
+	toolchain=~/kernel/kernel_motorola_msm8226/toolchain/4.10/bin
 fi
 
 rm -rf out
