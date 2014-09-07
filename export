@@ -5,7 +5,7 @@ version="1.4"
 rom="aosp"
 variant="falcon"
 ramdisk=ramdisk
-toolchain=~/kernel/kernel_motorola_msm8226/toolchain/4.10/bin
+toolchain=~/kernel/kernel_motorola_msm8226/toolchain/arm-cortex_a15-linux-gnueabihf-linaro_4.9.2-2014.08/bin
 toolchain2="arm-eabi-"
 config="msm8226_mmi_defconfig"
 kerneltype="zImage-dtb"
@@ -18,7 +18,7 @@ cmdline="console=ttyHSL0,115200,n8 androidboot.console=ttyHSL0 androidboot.hardw
 
 if [ "$1" = "local" ]; then
 	build=~/downloads/InSaNiTy
-	toolchain=~/kernel/kernel_motorola_msm8226/toolchain/4.10/bin
+	toolchain=~/kernel/kernel_motorola_msm8226/toolchain/arm-cortex_a15-linux-gnueabihf-linaro_4.9.2-2014.08/bin
 fi
 
 rm -rf out
